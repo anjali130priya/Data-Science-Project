@@ -1,0 +1,340 @@
+
+```{r }
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(ggplot2))
+#install.packages('corrplot')
+suppressPackageStartupMessages(library(corrplot))
+#install.packages('moments')
+suppressPackageStartupMessages(library(moments))
+#install.packages('GGally')
+suppressPackageStartupMessages(library(GGally))
+#install.packages('faraway')
+suppressPackageStartupMessages(library(faraway))
+#install.packages('olsrr')
+suppressPackageStartupMessages(library(olsrr))
+#install.packages('lmtest')
+suppressPackageStartupMessages(library(MASS))
+#install.packages('MASS')
+#install.packages('ggfortify')
+suppressPackageStartupMessages(library(ggfortify))
+#install.packages('broom')
+suppressPackageStartupMessages(library(broom))
+#install.packages('jtools')
+#install.packages('huxtable')
+suppressPackageStartupMessages(library(huxtable))
+suppressPackageStartupMessages(library(jtools))
+#install.packages('cowplot')
+suppressPackageStartupMessages(library(cowplot))
+
+
+
+
+
+
+abalone <- readr::read_csv('C:/personal files/data analytics/docs/git proj/abalone age prediction/Data-Science-Project/abalone.csv', show_col_types = FALSE)
+
+
+head(abalone)
+str(abalone)
+dim(abalone)
+
+
+##Convering sex variable to factor type
+abalone$sex = as.factor(abalone$sex)
+glimpse(abalone)
+
+summary(abalone)
+# seperating categorical variable
+abl_cat =abalone %>% 
+dplyr::select(sex)  %>% 
+ group_by(sex)
+
+
+#analysing proportion of data on the basis of sex
+sex_prop =abl_cat %>%
+summarise(count_n=n())%>%
+mutate(prop.= paste0(round(count_n/sum(count_n)*100 , 2) , "%" ))
+print(sex_prop)
+
+
+
+# This is a chart, switch to the DataCamp editor to view and configure it.
+
+
+missing_data= function(x) {
+    name_var= c()
+    missing_values = c()
+    for (i in 1: x ){
+     name_var[i]=(names(abalone[i]))
+     missing_values[i] =(sum(is.na(abalone[i])))
+     }
+  return(data.frame(name_var, missing_values ))
+    
+}
+
+as.data.frame(lapply((ncol(abalone)) , missing_data))
+
+
+
+dup_data= sum(duplicated(abalone))
+paste0("There are " ,dup_data , " " , "full duplicates in the dataset")
+
+ggplot(stack(abalone), aes(x = ind, y = values , color= ind) )+
+  geom_boxplot()+
+  labs(title ="Boxplot")
+
+
+
+
+##standarization of data.
+std_num_abl= function(y) {
+    
+    standarization =(y - mean(y)) / sd(y)
+    return(standarization)
+}
+
+abl_num=as.data.frame(lapply(abalone[, -1],std_num_abl ))
+ggplot(stack(abl_num), aes(x = ind, y = values , color= ind) )+
+  geom_boxplot()+
+  labs(title ="Boxplot")
+
+
+
+
+abl_sum=as.data.frame(sapply(abalone[,-1], summary))
+abl_sum
+abl_skew = as.data.frame(sapply (abalone[,-1], skewness))
+abl_kur = as.data.frame (sapply(abalone[,-1], kurtosis))
+abl_var = as.data.frame(sapply(abalone[,-1] , var))
+
+as.data.frame(cbind(var = abl_var, skew= abl_skew , abl_kur))
+
+
+
+#REMOVING OUTLIER 
+abl_numerical = as.data.frame(abalone[,-1])
+
+v= list()
+
+abl_outliers=for (i in 1:ncol(abl_num)){
+    
+     name_out= (names(abl_numerical))[i]
+    abliout = boxplot.stats(abl_numerical[,i])$out
+    v[[(names(abl_numerical))[i]]]=  boxplot.stats(abl_numerical[,i])$out
+    len_out = length(abliout)
+    print(c(name_out ,paste("number of outliers" , len_out)))
+    print(sort(abliout))
+
+}
+
+
+
+abl_num_noout= abalone %>% filter( !length  %in% v$length , !diameter  %in% v$diameter ,!height  %in% v$height ,
+                         !whole_wt %in% v$whole_wt , !shell_wt %in% v$shell_wt ,!shucked_wt %in% v$shucked_wt ,
+                         !viscera_wt %in% v$viscera_wt, !rings %in% v$rings)
+
+
+head(abl_num_noout)
+
+paste("Total no of rows with outliers removed" ,dim(abl_numerical)[1]-dim(abl_num_noout)[1] , "hence dimension of cleaned dataset ", dim(abl_num_noout)[1] ,"x", dim(abl_num_noout)[2])
+
+
+
+
+
+std_num_abl= function(y) {
+    
+    standarization =(y - mean(y)) / sd(y)
+    return(standarization)
+}
+
+ 
+
+
+x= as.data.frame(lapply(abl_num_noout[,-1] ,std_num_abl ))
+
+abl.cs = cbind(abl_num_noout[,1],x  )
+
+summary(abl.cs)
+
+
+
+
+GGally::ggpairs(abl.cs, aes( color = sex ,alpha = 0.8 ), title = "Pairs plot for abalone dataset"  )+ ggplot2::theme_grey(base_size = 2) 
+
+abalone_corr = abl.cs[,c(-1, -9)]
+
+corrplot(cor(abalone_corr) ,type = "lower" ,main="\nCorrelation matrix" , addCoef.col = 'red', number.cex=1.0 , 
+        , tl.srt = 45)
+
+par(mfrow = c(2, 2 ))
+age_wholewt = ggplot (abl.cs , aes(whole_wt , age , colour = sex))+
+geom_point()+geom_smooth (method  = "lm")+
+labs(title =  "Relation between age vs whole_wt") 
+
+age_shuckedwt = ggplot (abl.cs , aes(shucked_wt , age , colour = sex))+
+geom_point()+geom_smooth (method  = "lm")+
+labs(title =  "Relation between age vs shucked_wt")
+
+age_shellwt = ggplot (abl.cs , aes(shell_wt , age , colour = sex))+
+geom_point()+geom_smooth (method  = "lm")+
+labs(title =  "Relation between age vs shell_wt")
+
+plot_grid(age_wholewt , age_shellwt , age_shuckedwt , labels ="AUTO" )
+
+
+
+
+set.seed(90)
+#Splitting data
+abl.cs = abl.cs  %>%  
+mutate (split = sample(c(0,1) , size = nrow(abl.cs) , replace =TRUE, prob = c(0.30 , 0.70 )))
+str(abl.cs)
+train  = subset(abl.cs , split== 1)
+test = subset (abl.cs , split == 0)
+
+ggplot(abl.cs , aes(as.factor(split) , fill= sex ))+
+geom_bar(start = "identity" ,position = "dodge" )+
+
+theme_minimal()+
+ggtitle("Splitting data into test and train")+
+xlab("Split dataset")
+
+# The OLS we are aiming for is :age of abalone which is determined by the count of rings hence we can say that age is dependent on the no of rings which is 1.5 * rings . Hence we can excluse the age variable for now in the model and consider as ring as explanatory variable i.e Regressing Rings~ sex + length + diameter + height +whole_wt+  vicera_wt + shucked_wt + shell_wt
+
+
+ols1 = lm(rings ~ sex + length , data = train)
+ols2 = lm(rings ~ sex +length + diameter, data = train)
+ols3 = lm(rings ~ sex + length + diameter + height, data = train)
+ols4 = lm(rings ~ sex + length + diameter +height + whole_wt, data = train)
+ols5 = lm(rings ~ sex + length + diameter + height +whole_wt + shucked_wt, data = train)
+ols6 = lm(rings ~ sex + length + diameter + height +whole_wt + shucked_wt, data = train)
+ols7 = lm(rings ~ sex + length + diameter + height +whole_wt + shucked_wt + viscera_wt , data = train)
+ols8 = lm(rings ~ sex + length + diameter + height +whole_wt + shucked_wt +viscera_wt + shell_wt, data = train)
+
+export_summs(ols1 , ols2 , ols3 , ols4 , ols5 , ols6 , ols7 , ols8)
+
+
+
+sum_model =export_summs(ols1 , ols2 , ols3 , ols4 , ols5 , ols6 , ols7 , ols8)
+
+R =sum_model  %>% filter(names ==c("R2" ) )  
+Rsq=as.numeric(R)
+Rsq=na.omit(as.numeric(R))
+sum_model_col=colnames(sum_model)
+r2_vs_model=data.frame(x1=sum_model_col[-1] , y1 =Rsq)
+r2_vs_model
+#viz
+ggplot(r2_vs_model , aes (x1 , y1, colour= "red" , group = 1))+geom_point() +geom_line() +labs(title =" Rsq vs ADDITIVE MODELS" ,x = "Models" , y= "R^2")
+
+
+## lets see a summary of selected model
+summary(ols8)
+
+#VIF (variance of inflation) test
+as.matrix(faraway::vif(ols8))
+
+#check for variablity in highly correlated variable .
+ols_correlations(ols8)
+
+##model without whole_wt variable
+ols8_model1 =lm(rings ~ sex + length + diameter + height + shucked_wt +viscera_wt + shell_wt, data = train)
+summary(ols8_model1)
+
+####Variance inflation factor of the additive model without the Whole_weight
+as.matrix(faraway::vif(ols8_model1))
+
+ols_correlations(ols8_model1)
+
+##model without whoe_wt and diameter variable
+ols8_model2 =lm(rings ~ sex + length +height + shucked_wt +viscera_wt + shell_wt, data = train)
+
+####Variance inflation factor of the additive model without the Whole_weight and diameter
+as.matrix(faraway::vif(ols8_model2))
+
+summary(ols8_model2)
+
+anova(ols8_model2 , ols8)
+summary (ols8_model2)
+
+
+##After removing significant multicoliniearity we can vicera_wt becomes insignificant and hence can be removed
+
+ols8_model3 =lm(rings ~ sex + length +height + shucked_wt + shell_wt, data = train)
+summary(ols8_model3)
+
+par(mfrow = c(2,2))
+plot(ols8_model3)
+
+library(lmtest)
+lmtest::dwtest(ols8_model3)
+             
+
+## Detecting leverages and influencers
+autoplot(ols8_model3, which =4:6,  nrow =3,  ncol =1
+)
+names(summary(ols8_model3))
+
+ols8_model3 %>%
+   augment() %>% 
+   dplyr::select(rings , .hat , .cooksd) %>% 
+   arrange(desc(.cooksd))  %>% 
+   head()
+
+## removing the most influencial data
+
+train_1= train  %>% 
+filter( rings != c(-0.6139 ,-1.4721 , 1.1025 )) 
+
+
+ols8_model4 =lm(rings ~ sex + length +height + shucked_wt + shell_wt, data = train_1)
+summary(ols8_model4)
+
+
+
+
+
+## Drop the variables from the test dataset as per the train model.
+test_1 = test %>% dplyr::select(sex ,length ,height , shucked_wt , shell_wt, rings)
+train_1 = train %>%  dplyr:: select(sex ,length ,height , shucked_wt , shell_wt, rings)
+set.seed(900)
+## Take random observation fro test data
+test_5 =sample_n(test_1 , 10)
+
+
+## predicting avalone rings
+no.rings_pred. =  predict(ols8_model4 , test_5 , interval = "prediction")
+no.rings_obs. = abl.cs$rings
+
+## Destandarization of ring variable
+targetmean = mean(abl_num_noout$rings)
+targetsd = sd(abl_num_noout$rings)
+unscaledtest.obs = round(no.rings_obs. *targetsd + targetmean , 0)
+unscaledtest.pred = round (no.rings_pred. *targetsd + targetmean , 0)
+obs.age = unscaledtest.obs * 1.5
+pred.age = unscaledtest.pred * 1.5
+
+
+cbind(observed_no.rings = unscaledtest.obs ,predicted =unscaledtest.pred ,observed_age = obs.age , pred.age ) %>%  head(10)
+
+#exp(predict(ols8_model3, newdata=new_data, interval="confidence"))
+
+rmse_trainols8_model=sqrt(mean((train$rings  - predict(ols8 , train))^2))
+rmse_testols8_model = sqrt(mean((test$rings  - predict(ols8 , test))^2))
+
+
+rmse_trainols8_model4=sqrt(mean((train_1$rings  - predict(ols8_model4 , train_1))^2))
+rmse_testols8_model4 = sqrt(mean((test_1$rings  - predict(ols8_model4 , test_1))^2))
+
+
+data.frame(model =c("ols8","ols8_model4") ,rmse_train = c(rmse_trainols8_model ,rmse_trainols8_model4) , rmse_test =c(rmse_testols8_model ,rmse_trainols8_model4 ))
+```
+
+
+
+---
+title: Predicting-age-of-abalone-using-Multiple-Linear-Regression.R
+author: anjal
+date: '2022-10-26'
+
+---
